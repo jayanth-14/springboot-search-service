@@ -1,0 +1,112 @@
+name: Sync OpenAPI spec to shared repo
+
+on:
+  push:
+    branches: [main]
+
+env:
+  SPEC_ENDPOINT: http://localhost:8080/v3/api-docs
+  SHARED_REPO_SPEC_LOCATION: specs/OpenApi/springboot-search-service
+  RUN_CMD: ./mvnw spring-boot:run
+
+jobs:
+  sync-spec:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source repo
+        uses: actions/checkout@v4
+        with:
+          path: source-repo
+
+      - name: Checkout shared-specs-repo
+        uses: actions/checkout@v4
+        with:
+          repository: jayanth-14/shared-specs-repo
+          token: ${{ secrets.SHARED_REPO_PAT }}
+          path: shared-specs-repo
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Start app
+        working-directory: source-repo
+        run: nohup $RUN_CMD > app.log 2>&1 &
+
+      - name: Wait for app to be ready
+        run: |
+          for i in $(seq 1 60); do
+            curl -sf "$SPEC_ENDPOINT" -o /dev/null && exit 0
+            sleep 2
+          done
+          echo "App did not become ready in time"
+          cat source-repo/app.log
+          exit 1
+
+      - name: Fetch OpenAPI spec
+        run: curl -sf "$SPEC_ENDPOINT" -o new-spec.json
+
+      - name: Install oasdiff
+        run: curl -fsSL https://raw.githubusercontent.com/oasdiff/oasdiff/main/install.sh | sh
+
+      - name: Classify and write spec version
+        id: classify
+        working-directory: shared-specs-repo
+        run: |
+          set -euo pipefail
+          mkdir -p "$SHARED_REPO_SPEC_LOCATION"
+          REPO_NAME=$(basename "$SHARED_REPO_SPEC_LOCATION")
+          LATEST=$(ls "$SHARED_REPO_SPEC_LOCATION" 2>/dev/null | grep -E "^${REPO_NAME}-v[0-9]+\.json$" | sed -E "s/^${REPO_NAME}-v([0-9]+)\.json$/\1/" | sort -n | tail -1 || true)
+
+          if [ -z "$LATEST" ]; then
+            cp "$GITHUB_WORKSPACE/new-spec.json" "$SHARED_REPO_SPEC_LOCATION/${REPO_NAME}-v1.json"
+            echo "action=created" >> "$GITHUB_OUTPUT"
+            echo "version=1" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          CURRENT_FILE="$SHARED_REPO_SPEC_LOCATION/${REPO_NAME}-v${LATEST}.json"
+
+          if diff -q "$CURRENT_FILE" "$GITHUB_WORKSPACE/new-spec.json" > /dev/null; then
+            echo "action=none" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if oasdiff breaking "$CURRENT_FILE" "$GITHUB_WORKSPACE/new-spec.json"; then
+            BREAKING=false
+          else
+            BREAKING=true
+          fi
+
+          if [ "$BREAKING" = true ]; then
+            NEXT=$((LATEST + 1))
+            cp "$GITHUB_WORKSPACE/new-spec.json" "$SHARED_REPO_SPEC_LOCATION/${REPO_NAME}-v${NEXT}.json"
+            echo "action=bumped" >> "$GITHUB_OUTPUT"
+            echo "version=$NEXT" >> "$GITHUB_OUTPUT"
+          else
+            cp "$GITHUB_WORKSPACE/new-spec.json" "$CURRENT_FILE"
+            echo "action=overwritten" >> "$GITHUB_OUTPUT"
+            echo "version=$LATEST" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open PR against shared-specs-repo
+        if: steps.classify.outputs.action != 'none'
+        working-directory: shared-specs-repo
+        env:
+          GH_TOKEN: ${{ secrets.SHARED_REPO_PAT }}
+        run: |
+          BRANCH="spec-update/springboot-search-service-${{ github.sha }}"
+          git config user.name "spec-sync-bot"
+          git config user.email "spec-sync-bot@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add "$SHARED_REPO_SPEC_LOCATION"
+          git commit -m "springboot-search-service: ${{ steps.classify.outputs.action }} spec (v${{ steps.classify.outputs.version }})"
+          git push origin "$BRANCH"
+          gh pr create \
+            --repo jayanth-14/shared-specs-repo \
+            --base main \
+            --head "$BRANCH" \
+            --title "springboot-search-service: update OpenAPI spec (v${{ steps.classify.outputs.version }})" \
+            --body "Automated spec sync from springboot-search-service@${{ github.sha }}. Action: ${{ steps.classify.outputs.action }}."
