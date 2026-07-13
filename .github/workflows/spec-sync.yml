@@ -74,7 +74,7 @@ jobs:
             exit 0
           fi
 
-          if oasdiff breaking "$CURRENT_FILE" "$GITHUB_WORKSPACE/new-spec.json"; then
+          if oasdiff breaking "$CURRENT_FILE" "$GITHUB_WORKSPACE/new-spec.json" --fail-on ERR; then
             BREAKING=false
           else
             BREAKING=true
