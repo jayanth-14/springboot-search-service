@@ -26,7 +26,7 @@ public class SearchController {
         return Map.of("results", matches);
     }
 
-    
+
 
     public record Item(int id, String name) {}
 }
