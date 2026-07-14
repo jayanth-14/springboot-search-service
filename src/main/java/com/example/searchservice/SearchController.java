@@ -19,14 +19,14 @@ public class SearchController {
     );
 
     @GetMapping("/search")
-    public Map<String, List<Item>> search(@RequestParam String q) {
+    public Map<String, List<Item>> search(@RequestParam String query) {
         List<Item> matches = RECORDS.stream()
-                .filter(i -> i.name().toLowerCase().contains(q.toLowerCase()))
+                .filter(i -> i.name().toLowerCase().contains(query.toLowerCase()))
                 .toList();
         return Map.of("results", matches);
     }
 
-    
+
 
     public record Item(int id, String name) {}
 }
