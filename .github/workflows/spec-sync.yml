@@ -48,7 +48,7 @@ jobs:
           exit 1
 
       - name: Fetch OpenAPI spec
-        run: curl -sf "$SPEC_ENDPOINT" -o new-spec.json
+        run: curl -sf "$SPEC_ENDPOINT" | jq -S . > new-spec.json
 
       - name: Install oasdiff
         run: curl -fsSL https://raw.githubusercontent.com/oasdiff/oasdiff/main/install.sh | version=1.23.0 sh
