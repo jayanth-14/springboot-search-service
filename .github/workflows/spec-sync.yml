@@ -48,7 +48,7 @@ jobs:
           exit 1
 
       - name: Fetch OpenAPI spec
-        run: curl -sf "$SPEC_ENDPOINT" | jq -S . > new-spec.json
+        run: curl -sf "$SPEC_ENDPOINT" | jq . > new-spec.json
 
       - name: Install oasdiff
         run: curl -fsSL https://raw.githubusercontent.com/oasdiff/oasdiff/main/install.sh | version=1.23.0 sh
@@ -63,7 +63,7 @@ jobs:
 
           if [ -z "$LATEST" ]; then
             cp "$GITHUB_WORKSPACE/new-spec.json" "$SHARED_REPO_SPEC_LOCATION/${REPO_NAME}-v1.json"
-            echo "action='Generate spec'" >> "$GITHUB_OUTPUT"
+            echo "action=Generate spec" >> "$GITHUB_OUTPUT"
             echo "version=1" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -84,11 +84,11 @@ jobs:
           if [ "$BREAKING" = true ]; then
             NEXT=$((LATEST + 1))
             cp "$GITHUB_WORKSPACE/new-spec.json" "$SHARED_REPO_SPEC_LOCATION/${REPO_NAME}-v${NEXT}.json"
-            echo "action='Generate spec'" >> "$GITHUB_OUTPUT"
+            echo "action=Generate spec" >> "$GITHUB_OUTPUT"
             echo "version=$NEXT" >> "$GITHUB_OUTPUT"
           else
             cp "$GITHUB_WORKSPACE/new-spec.json" "$CURRENT_FILE"
-            echo "action='Update spec'" >> "$GITHUB_OUTPUT"
+            echo "action=Update spec" >> "$GITHUB_OUTPUT"
             echo "version=$LATEST" >> "$GITHUB_OUTPUT"
           fi
 
