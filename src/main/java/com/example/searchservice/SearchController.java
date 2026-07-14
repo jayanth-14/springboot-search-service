@@ -26,5 +26,13 @@ public class SearchController {
         return Map.of("results", matches);
     }
 
+    @GetMapping("/newsearch")
+    public Map<String, List<Item>> search(@RequestParam String query) {
+        List<Item> matches = RECORDS.stream()
+                .filter(i -> i.name().toLowerCase().contains(query.toLowerCase()))
+                .toList();
+        return Map.of("results", matches);
+    }
+
     public record Item(int id, String name) {}
 }
