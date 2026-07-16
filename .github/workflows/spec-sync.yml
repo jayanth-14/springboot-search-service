@@ -15,6 +15,15 @@ jobs:
   sync-spec:
     runs-on: ubuntu-latest
     steps:
+      - name: Generate installation token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.SPEC_SYNC_ID }}
+          private-key: ${{ secrets.SPEC_SYNC_SECRET }}
+          owner: jayanth-14
+          repositories: shared-specs-repo
+
       - name: Checkout source repo
         uses: actions/checkout@v4
         with:
@@ -24,7 +33,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: jayanth-14/shared-specs-repo
-          token: ${{ secrets.SHARED_REPO_PAT }}
+          token: ${{ steps.app-token.outputs.token }}
           path: shared-specs-repo
 
       - name: Set up Java
@@ -96,7 +105,7 @@ jobs:
         if: steps.classify.outputs.action != 'none'
         working-directory: shared-specs-repo
         env:
-          GH_TOKEN: ${{ secrets.SHARED_REPO_PAT }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
           BRANCH="spec-update/springboot-search-service-${{ github.sha }}"
           git config user.name "spec-sync-bot"
